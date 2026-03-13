@@ -26,6 +26,8 @@ class SessionReport:
     top_improvements: list[dict[str, object]] = field(default_factory=list)
     dead_ends_found: int = 0
     exploration_mode: str = "linear"
+    stale_lessons_count: int = 0
+    superseded_lessons_count: int = 0
 
     def to_markdown(self) -> str:
         """Render report as markdown."""
@@ -70,6 +72,13 @@ class SessionReport:
         lines.append(f"{self.dead_ends_found} dead ends identified.")
         lines.append("")
 
+        # Lesson health (AC-236)
+        if self.stale_lessons_count > 0 or self.superseded_lessons_count > 0:
+            lines.append("## Lesson Health")
+            lines.append(f"- Stale lessons: {self.stale_lessons_count}")
+            lines.append(f"- Superseded lessons: {self.superseded_lessons_count}")
+            lines.append("")
+
         return "\n".join(lines)
 
 
@@ -80,6 +89,8 @@ def generate_session_report(
     exploration_mode: str = "linear",
     duration_seconds: float = 0.0,
     dead_ends_found: int = 0,
+    stale_lessons_count: int = 0,
+    superseded_lessons_count: int = 0,
 ) -> SessionReport:
     """Generate a session report from trajectory data."""
     if not trajectory_rows:
@@ -94,6 +105,8 @@ def generate_session_report(
             duration_seconds=duration_seconds,
             exploration_mode=exploration_mode,
             dead_ends_found=dead_ends_found,
+            stale_lessons_count=stale_lessons_count,
+            superseded_lessons_count=superseded_lessons_count,
         )
 
     first = trajectory_rows[0]
@@ -131,4 +144,6 @@ def generate_session_report(
         top_improvements=top_improvements,
         dead_ends_found=dead_ends_found,
         exploration_mode=exploration_mode,
+        stale_lessons_count=stale_lessons_count,
+        superseded_lessons_count=superseded_lessons_count,
     )
