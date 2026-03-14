@@ -10,6 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from autocontext.harness.core.types import RoleUsage
+from autocontext.harness.cost.calculator import CostCalculator
+
 
 def _safe_float(val: Any, default: float = 0.0) -> float:  # noqa: ANN401
     try:
@@ -249,7 +252,18 @@ def compute_cost_efficiency(
 
     tokens_per_advance = total_tokens // advances if advances > 0 else 0
 
+    calculator = CostCalculator()
     total_cost = consultation_cost
+    for metric in role_metrics:
+        record = calculator.from_usage(
+            RoleUsage(
+                input_tokens=_safe_int(metric.get("input_tokens")),
+                output_tokens=_safe_int(metric.get("output_tokens")),
+                latency_ms=_safe_int(metric.get("latency_ms")),
+                model=str(metric.get("model") or "_default"),
+            )
+        )
+        total_cost += record.total_cost
 
     cost_per_advance = total_cost / advances if advances > 0 else 0.0
 
@@ -269,7 +283,7 @@ def compute_cost_efficiency(
         total_input_tokens=total_in,
         total_output_tokens=total_out,
         total_tokens=total_tokens,
-        total_cost_usd=total_cost,
+        total_cost_usd=round(total_cost, 6),
         tokens_per_advance=tokens_per_advance,
         cost_per_advance=round(cost_per_advance, 4),
         tokens_per_score_point=tokens_per_score_point,
