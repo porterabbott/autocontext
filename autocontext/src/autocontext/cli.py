@@ -137,11 +137,13 @@ def _write_json_stderr(message: str) -> None:
 
 
 def _is_agent_task(scenario_name: str) -> bool:
-    """Check if a scenario name maps to an AgentTaskInterface class."""
-    cls = SCENARIO_REGISTRY.get(scenario_name)
-    if cls is None:
+    """Check if a scenario name maps to the agent_task family."""
+    if scenario_name not in SCENARIO_REGISTRY:
         return False
-    return isinstance(cls, type) and issubclass(cls, AgentTaskInterface)
+    from autocontext.scenarios.families import detect_family
+
+    family = detect_family(SCENARIO_REGISTRY[scenario_name]())
+    return family is not None and family.name == "agent_task"
 
 
 def _resolve_agent_task_runtime(settings: AppSettings, scenario_name: str) -> tuple[LLMProvider, str]:
