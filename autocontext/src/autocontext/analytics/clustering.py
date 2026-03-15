@@ -165,6 +165,10 @@ class PatternClusterer:
                     "scenarios": sorted({
                         f.scenario for f in type_to_facets[signal_type]
                     }),
+                    "scenario_families": sorted({
+                        f.scenario_family for f in type_to_facets[signal_type]
+                        if f.scenario_family
+                    }),
                     "providers": sorted({
                         f.agent_provider for f in type_to_facets[signal_type]
                     }),

@@ -192,6 +192,20 @@ class SQLiteStore:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def get_staged_validation_results_for_run(self, run_id: str) -> list[dict[str, Any]]:
+        """Retrieve all staged validation results for a run, ordered by generation and stage."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT generation_index, stage_order, stage_name, status, duration_ms, error, error_code
+                FROM staged_validation_results
+                WHERE run_id = ?
+                ORDER BY generation_index, stage_order
+                """,
+                (run_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def append_agent_output(self, run_id: str, generation_index: int, role: str, content: str) -> None:
         self.append_generation_agent_activity(
             run_id,
@@ -344,6 +358,20 @@ class SQLiteStore:
                 """,
                 (run_id, generation_index, decision, reason, retry_count),
             )
+
+    def get_recovery_markers_for_run(self, run_id: str) -> list[dict[str, Any]]:
+        """Return recovery markers for a run, ordered by generation."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT generation_index, decision, reason, retry_count
+                FROM generation_recovery
+                WHERE run_id = ?
+                ORDER BY generation_index, rowid
+                """,
+                (run_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
 
     def get_matches_for_run(self, run_id: str) -> list[dict[str, Any]]:
         """Return all match records for a run, ordered by generation and seed."""

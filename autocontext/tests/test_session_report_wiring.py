@@ -266,6 +266,75 @@ class TestProgressReportWiring:
         assert report.cost.total_cost_usd > 0
 
 
+class TestAggregateAnalyticsWiring:
+    """Aggregate facets and clustering are generated from the live run completion path."""
+
+    def test_aggregate_analytics_persisted_on_run_completion(self, tmp_path: Path) -> None:
+        settings = _make_settings(tmp_path, session_reports_enabled=False)
+        runner, mocks = _make_runner_with_mocks(settings)
+
+        mocks["sqlite"].get_generation_metrics.return_value = [
+            {
+                "generation_index": 1,
+                "mean_score": 0.3,
+                "best_score": 0.4,
+                "elo": 1020.0,
+                "gate_decision": "advance",
+                "status": "completed",
+                "duration_seconds": 12.0,
+            },
+            {
+                "generation_index": 2,
+                "mean_score": 0.5,
+                "best_score": 0.6,
+                "elo": 1080.0,
+                "gate_decision": "retry",
+                "status": "completed",
+                "duration_seconds": 14.0,
+            },
+        ]
+        mocks["sqlite"].get_agent_role_metrics.return_value = [
+            {
+                "generation_index": 1,
+                "role": "competitor",
+                "model": "claude-sonnet-4-5-20250929",
+                "input_tokens": 1000,
+                "output_tokens": 500,
+                "latency_ms": 100,
+                "subagent_id": "competitor",
+                "status": "success",
+            }
+        ]
+        mocks["sqlite"].get_staged_validation_results_for_run.return_value = [
+            {
+                "generation_index": 2,
+                "stage_order": 1,
+                "stage_name": "syntax",
+                "status": "failed",
+                "duration_ms": 10,
+                "error": "parse error",
+                "error_code": "parse",
+            }
+        ]
+        mocks["sqlite"].get_consultations_for_run.return_value = []
+        mocks["sqlite"].get_recovery_markers_for_run.return_value = [
+            {
+                "generation_index": 2,
+                "decision": "retry",
+                "reason": "validator failed",
+                "retry_count": 1,
+            }
+        ]
+        mocks["artifacts"].tools_dir.return_value = MagicMock(exists=MagicMock(return_value=True))
+
+        _run_with_pipeline_mock(runner, mocks, "grid_ctf", 2, "test_aggregate")
+
+        assert (tmp_path / "knowledge" / "facets" / "test_aggregate.json").exists()
+        assert (tmp_path / "knowledge" / "analytics" / "friction_clusters.json").exists()
+        assert (tmp_path / "knowledge" / "analytics" / "delight_clusters.json").exists()
+        assert (tmp_path / "knowledge" / "analytics" / "taxonomy.json").exists()
+
+
 class TestSessionReportEmptyTrajectory:
     """Handles empty trajectory (0 completed generations) gracefully."""
 

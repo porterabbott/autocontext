@@ -843,6 +843,20 @@ class TestPatternClusterer:
         for cluster in filtered:
             assert "run-3" in cluster.run_ids
 
+    def test_query_clusters_by_scenario_family(self) -> None:
+        from autocontext.analytics.clustering import PatternClusterer
+
+        facets = self._make_facets()
+        clusterer = PatternClusterer()
+        clusters = clusterer.cluster_friction(facets)
+
+        filtered = clusterer.query_clusters(
+            clusters, scenario_family="game"
+        )
+        assert filtered
+        for cluster in filtered:
+            assert "game" in cluster.metadata.get("scenario_families", [])
+
     def test_empty_facets(self) -> None:
         from autocontext.analytics.clustering import PatternClusterer
 
