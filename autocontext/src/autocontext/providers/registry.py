@@ -78,9 +78,19 @@ def create_provider(
             raise ProviderError("MLX provider requires a model path (model_path). Set AUTOCONTEXT_MLX_MODEL_PATH.")
         return MLXProvider(model_path=model)
 
+    if provider_type == "openclaw":
+        from autocontext.providers.openclaw_provider import OpenClawProvider
+
+        return OpenClawProvider(
+            model=model,
+            openclaw_bin=os.getenv("AUTOCONTEXT_OPENCLAW_BIN"),
+            thinking=os.getenv("AUTOCONTEXT_OPENCLAW_THINKING", "off"),
+            timeout_seconds=int(os.getenv("AUTOCONTEXT_OPENCLAW_TIMEOUT", "120")),
+        )
+
     raise ProviderError(
         f"Unknown provider type: {provider_type!r}. "
-        f"Supported: anthropic, openai, openai-compatible, ollama, vllm, mlx"
+        f"Supported: anthropic, openai, openai-compatible, ollama, vllm, mlx, openclaw"
     )
 
 

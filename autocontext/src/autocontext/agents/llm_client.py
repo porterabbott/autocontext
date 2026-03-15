@@ -489,6 +489,15 @@ def build_client_from_settings(settings: AppSettings) -> LanguageModelClient:
             model=settings.agent_default_model,
         )
         return ProviderBridgeClient(provider, use_provider_default_model=True)
+    if settings.agent_provider == "openclaw":
+        from autocontext.agents.provider_bridge import ProviderBridgeClient
+        from autocontext.providers.registry import create_provider
+
+        provider = create_provider(
+            provider_type="openclaw",
+            model=settings.agent_default_model,
+        )
+        return ProviderBridgeClient(provider, use_provider_default_model=True)
     raise ValueError(f"unsupported agent provider: {settings.agent_provider}")
 
 
