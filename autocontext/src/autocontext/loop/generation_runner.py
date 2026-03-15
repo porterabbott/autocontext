@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -8,6 +9,10 @@ from pathlib import Path
 from typing import cast
 
 from autocontext.agents import AgentOrchestrator
+from autocontext.analytics.clustering import PatternClusterer
+from autocontext.analytics.extractor import FacetExtractor
+from autocontext.analytics.store import FacetStore
+from autocontext.analytics.taxonomy import FacetTaxonomy
 from autocontext.backpressure import BackpressureGate, TrendAwareGate
 from autocontext.config import AppSettings
 from autocontext.execution import ExecutionSupervisor
@@ -23,6 +28,7 @@ from autocontext.loop.controller import LoopController
 from autocontext.loop.events import EventStreamEmitter
 from autocontext.scenarios import SCENARIO_REGISTRY
 from autocontext.scenarios.base import ScenarioInterface
+from autocontext.scenarios.families import detect_family
 from autocontext.storage import ArtifactStore, SQLiteStore
 
 LOGGER = logging.getLogger(__name__)
@@ -230,6 +236,64 @@ class GenerationRunner:
         )
         self.artifacts.write_progress_report(scenario_name, run_id, report)
 
+    def _generate_aggregate_analytics(
+        self,
+        run_id: str,
+        scenario_name: str,
+        scenario: ScenarioInterface,
+    ) -> None:
+        """Extract and persist aggregate run facets, then update clusters/taxonomy."""
+        family = detect_family(scenario)
+        run_payload = {
+            "run_id": run_id,
+            "scenario": scenario_name,
+            "scenario_family": family.name if family is not None else "",
+            "agent_provider": self.settings.agent_provider,
+            "executor_mode": self.settings.executor_mode,
+            "metadata": {
+                "exploration_mode": self.settings.exploration_mode,
+                "rlm_enabled": self.settings.rlm_enabled,
+            },
+        }
+        generation_rows = self.sqlite.get_generation_metrics(run_id)
+        role_metrics = self.sqlite.get_agent_role_metrics(run_id)
+        staged_validations = self.sqlite.get_staged_validation_results_for_run(run_id)
+        consultations = self.sqlite.get_consultations_for_run(run_id)
+        recovery = self.sqlite.get_recovery_markers_for_run(run_id)
+
+        facet = FacetExtractor().extract({
+            "run": run_payload,
+            "generations": generation_rows,
+            "role_metrics": role_metrics,
+            "staged_validations": staged_validations,
+            "consultations": consultations,
+            "recovery": recovery,
+        })
+
+        facet_store = FacetStore(self.settings.knowledge_root)
+        facet_store.persist(facet)
+
+        all_facets = facet_store.list_facets()
+        clusterer = PatternClusterer()
+        friction_clusters = clusterer.cluster_friction(all_facets)
+        delight_clusters = clusterer.cluster_delight(all_facets)
+
+        analytics_root = self.settings.knowledge_root / "analytics"
+        analytics_root.mkdir(parents=True, exist_ok=True)
+        (analytics_root / "friction_clusters.json").write_text(
+            json.dumps([cluster.to_dict() for cluster in friction_clusters], indent=2),
+            encoding="utf-8",
+        )
+        (analytics_root / "delight_clusters.json").write_text(
+            json.dumps([cluster.to_dict() for cluster in delight_clusters], indent=2),
+            encoding="utf-8",
+        )
+
+        taxonomy_path = analytics_root / "taxonomy.json"
+        taxonomy = FacetTaxonomy.load(taxonomy_path)
+        taxonomy.evolve([*friction_clusters, *delight_clusters])
+        taxonomy.save(taxonomy_path)
+
     def run(self, scenario_name: str, generations: int, run_id: str | None = None) -> RunSummary:
         scenario = self._scenario(scenario_name)
         active_run_id = run_id or f"run_{uuid.uuid4().hex[:12]}"
@@ -426,6 +490,10 @@ class GenerationRunner:
             self._generate_progress_report(active_run_id, scenario_name)
         except Exception:
             LOGGER.warning("failed to generate progress report for run %s", active_run_id, exc_info=True)
+        try:
+            self._generate_aggregate_analytics(active_run_id, scenario_name, scenario)
+        except Exception:
+            LOGGER.warning("failed to generate aggregate analytics for run %s", active_run_id, exc_info=True)
 
         # Snapshot knowledge for cross-run inheritance
         if self.settings.cross_run_inheritance and not self.settings.ablation_no_feedback:
