@@ -1,0 +1,142 @@
+name: deep_research
+description: >-
+  One-shot deep-research run for investigating a person's public online presence
+  and first-degree connections, with rigorous state updates and source tracking.
+task_prompt: |-
+  You are a research agent running against this workspace:
+  - Research root: /Users/porter/code/research-notes/
+
+  Objective:
+  Investigate a person's public online presence and first-degree connections.
+  Prioritize genuinely new facts and verifiable links between people, organizations,
+  and events.
+
+  Tools available:
+  - `searx` (SearXNG search CLI): `searx "query" -n 10 -e google,bing`
+  - `scrape` (web scraper/search):
+    - `scrape fetch URL --format markdown`
+    - `scrape deep "query" -n 5`
+    - `scrape search "query"`
+    - `scrape batch URL1 URL2`
+  - `stealth-fetch` (Cloudflare bypass fetcher):
+    - `stealth-fetch URL --format text`
+    - add `--proxy` for residential proxy
+  - `cf-render` (Cloudflare Browser Rendering API):
+    - `cf-render URL --format text --max-chars 5000`
+  - `agent-browser` (headless Chrome CLI for interactive/JS pages):
+    - `agent-browser open URL` then `agent-browser snapshot` for accessibility tree
+    - `agent-browser click @e2` / `agent-browser fill @e3 "text"` for interaction
+    - `agent-browser get text "selector"` to extract content
+    - `agent-browser close` when done (always close to free resources)
+  - `web_fetch` (basic URL fetcher)
+
+  Required workflow (execute in order):
+  1) Read current state:
+     - leads.md
+     - still-searching.md
+     - known-facts.md
+     - search-log.jsonl
+     - meta/strategy.md
+
+  2) Plan 5-10 NEW search queries:
+     - Explicitly avoid exact duplicates from search-log.jsonl.
+     - Favor unexplored angles from still-searching.md and leads.md.
+
+  3) Execute research with tool escalation:
+     - Start with `searx` / `scrape search` / `scrape deep` for discovery.
+     - Fetch candidate URLs with `web_fetch` or `scrape fetch`.
+     - If blocked/challenged, escalate to `stealth-fetch`.
+     - Use `cf-render` as last resort for hard Cloudflare blocks.
+     - Do not attempt automated logins.
+
+  4) Record findings:
+     - Write to findings/YYYY-MM-DD.md.
+     - For each finding include:
+       - source URL(s)
+       - what was learned
+       - confidence level (high/medium/low)
+
+  5) Update state files:
+     - leads.md
+     - still-searching.md
+     - known-facts.md
+
+  6) Update relationship graph artifacts:
+     - graph.json
+     - graph.html
+     Add any new nodes/edges and update details for changed nodes.
+
+  7) Log every search query to search-log.jsonl.
+
+  8) Self-evaluate run quality briefly:
+     - What worked
+     - What failed
+     - Best next leads
+
+  9) Git hygiene:
+     - Create a clean commit summarizing this run.
+     - Push to remote.
+
+  Output:
+  Return a concise free-text run report summarizing:
+  - queries planned/executed
+  - new discoveries
+  - state/graph updates
+  - dead ends
+  - commit hash
+judge_rubric: |-
+  Score the run from 0.0 to 1.0 using the weighted dimensions below.
+  Penalize rehashing known information, weak sourcing, duplicate searching,
+  skipped state updates, and missing query logs.
+
+  Dimensions:
+  1. new_discoveries (0.30)
+     - Did the run uncover genuinely new facts or first-degree connections?
+     - High score requires non-trivial, novel findings, not restatements.
+
+  2. source_quality (0.20)
+     - Are claims backed by primary/authoritative sources (official records,
+       original reporting, archived originals) rather than low-quality aggregators?
+
+  3. search_efficiency (0.20)
+     - Were 5-10 purposeful queries planned and executed without duplicate waste?
+     - Did the run avoid known dead-end patterns and pivot effectively?
+
+  4. tool_usage (0.15)
+     - Was tooling selected appropriately per target site?
+     - Did the run escalate from basic fetch to stealth-fetch/cf-render when needed,
+       without overusing expensive tiers?
+
+  5. state_hygiene (0.15)
+     - Were findings written with confidence + citations?
+     - Were leads.md, still-searching.md, known-facts.md, graph.json, graph.html,
+       and search-log.jsonl all updated correctly?
+     - Was the git commit clean and meaningful?
+
+  Final score = weighted sum of these five dimensions.
+output_format: free_text
+max_rounds: 1
+quality_threshold: 0.7
+rubric_dimensions:
+  - name: new_discoveries
+    description: Did the run surface genuinely new facts or connections?
+    weight: 0.30
+  - name: source_quality
+    description: Are sources primary/authoritative versus low-quality aggregators?
+    weight: 0.20
+  - name: search_efficiency
+    description: Did the agent avoid duplicate/dead-end patterns and query efficiently?
+    weight: 0.20
+  - name: tool_usage
+    description: Did the run use and escalate tools appropriately for blocked targets?
+    weight: 0.15
+  - name: state_hygiene
+    description: Were state files, graph artifacts, query logs, and git updates complete and clean?
+    weight: 0.15
+required_concepts:
+  - query deduplication against search-log.jsonl
+  - citation-backed findings with confidence levels
+  - fetch-tier escalation strategy
+  - graph updates (graph.json and graph.html)
+  - state maintenance across leads/still-searching/known-facts
+  - clean git commit and push

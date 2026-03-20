@@ -34,7 +34,11 @@ knowledge/*
 skills/*
 !skills/.gitkeep
 autocontext/runs/
-autocontext/knowledge/
+autocontext/knowledge/*
+!autocontext/knowledge/_agent_tasks/
+!autocontext/knowledge/_custom_scenarios/
+!autocontext/knowledge/escape_room_data/
+!autocontext/knowledge/deep_research/
 
 # Database artifacts
 *.sqlite3

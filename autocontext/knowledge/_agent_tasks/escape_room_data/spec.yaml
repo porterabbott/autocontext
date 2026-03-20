@@ -1,0 +1,93 @@
+name: escape_room_data
+description: >-
+  One-shot data collection run for the escape room industry dataset.
+  Runs the enrichment pipeline, analyzes results, and adapts strategy
+  based on accumulated knowledge about what works and what doesn't.
+task_prompt: |-
+  You are a data collection agent for the escape room industry dataset.
+
+  Project root: /Users/porter/code/escape-room-data/
+  Database: data/escape_rooms.db (SQLite)
+  Python venv: .venv/bin/python3
+
+  ## OBJECTIVE
+  Run the data collection pipeline and maximize evidence yield per HTTP request.
+  The database tracks ~8,200 escape room locations across the US. Your job is to
+  enrich them: scrape websites, extract pricing/rooms/contacts, collect reviews,
+  and maintain data quality.
+
+  ## TOOLS AVAILABLE
+  - Python scripts in `scripts/` (run via `.venv/bin/python3 scripts/<name>.py`)
+  - `enrich_location.py` — main enrichment (args: --limit N --delay N --depth 1|2 --cadence tiered)
+  - `collect_reviews.py` — Google Maps review collection (arg: --limit N)
+  - `geocode_locations.py` — Nominatim geocoding
+  - `date_locations.py` — year-opened estimation
+  - `apply_canonical_selection.py` — apply best evidence to canonical fields
+  - `derive_status.py` — derive open/closed status
+  - Deep extractors in `scripts/adapters/` (bookeo, fareharbor, peek, xola, etc.)
+  - `stats.py` — coverage snapshot
+  - `last_run.py` — last run summary
+  - Shell tools: `searx`, `scrape`, `stealth-fetch`, `agent-browser`, `cf-render`, `web_fetch`
+
+  ## REQUIRED WORKFLOW
+  1) **ORIENT**: Read `meta/strategy.md` (last 3 entries), run `stats.py`, run `last_run.py`
+  2) **READ PLAYBOOK**: Read the autocontext knowledge files at
+     /Users/porter/code/autocontext/autocontext/knowledge/escape_room_data/playbook.md
+     and hints.md for accumulated lessons from prior runs
+  3) **ADAPT**: Based on strategy + playbook + current metrics, decide:
+     - What --limit, --delay, --depth to use
+     - Whether to run reviews, geocoding, date estimation
+     - Whether to focus on fixing broken extractors vs. raw throughput
+     - Any new approaches the playbook suggests
+  4) **EXECUTE**: Run the pipeline with your chosen parameters
+  5) **ANALYZE**: After the run, check:
+     - evidence_per_request (target: >1.0, ideal: >5.0)
+     - canonical fields updated
+     - replay integrity (must be 100%)
+     - trust metrics trend
+     - which extractors succeeded/failed
+  6) **UPDATE STRATEGY**: Append a run update to `meta/strategy.md` with:
+     - What happened (metrics, timing, errors)
+     - What worked vs. what didn't
+     - What the next run should try differently
+  7) **REPORT**: Write a concise summary of what you accomplished
+
+  ## CRITICAL RULES
+  - NEVER modify the database schema
+  - If canonical_replay_pct drops below 100%: STOP immediately and report
+  - Always use the venv Python: `.venv/bin/python3`
+  - Commit changes to meta/strategy.md after each run
+  - Evidence/request ratio below 0.5 for 3+ consecutive runs = something is fundamentally broken.
+    Don't just re-run with the same parameters. Diagnose the root cause.
+
+  ## CURRENT KNOWN ISSUES (from playbook)
+  Read the playbook for accumulated knowledge. Key recurring issues:
+  - Bookeo deep extractor produces empty stdout (broken for weeks)
+  - Reviews hang without hard timeout
+  - Stealth budget of 25 exhausts quickly, blocking 50+ domains per run
+  - Evidence yield collapses when scraping unchanged pages repeatedly
+  - The agent tends to repeat the same parameters without diagnosing failure
+
+rubric: |-
+  Score the agent's data collection run on these criteria (0.0 to 1.0):
+
+  1. EVIDENCE YIELD (0.3 weight): Did the run produce meaningful evidence?
+     - evidence_per_request > 1.0 = good, > 3.0 = excellent
+     - evidence_per_request < 0.5 = poor, < 0.1 = failing
+
+  2. ADAPTATION (0.3 weight): Did the agent adapt based on prior failures?
+     - Did it read the playbook and apply lessons?
+     - Did it try something different from the last N runs?
+     - Did it diagnose root causes vs. just re-running?
+
+  3. COVERAGE MOVEMENT (0.2 weight): Did coverage metrics improve?
+     - booking_url, phone, pricing, reviews, coords percentages
+     - New rooms discovered
+
+  4. RELIABILITY (0.2 weight): Did the pipeline complete cleanly?
+     - No crashes, no replay regression
+     - Strategy file updated with useful analysis
+     - Honest about what failed and why
+
+  A score of 0.7+ means the run was productive.
+  A score below 0.3 means the agent repeated known failures without adapting.
